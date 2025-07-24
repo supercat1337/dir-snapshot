@@ -65,8 +65,16 @@ async function scanToFile(options) {
     };
 
     writer.write(`${JSON.stringify(header)}\n`);
+    try {
+        await processDirectory(rootPath, writer, excludePaths, maxDepth);
+        let footer = JSON.stringify({status: "success"});
+        writer.write(footer + "\n");
+    } catch (error) {
+        console.error("Error processing directory:", error);
+        let footer = JSON.stringify({status: "error", message: error.message});
+        writer.write(footer + "\n");
+    }
 
-    await processDirectory(rootPath, writer, excludePaths, maxDepth);
     writer.end();
 }
 
