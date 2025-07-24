@@ -1,0 +1,18 @@
+{
+  "name": "dir-snapshot-tool",
+  "version": "1.0.0",
+  "description": "Creates a snapshot of a directory and its contents",
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node example/index.js",
+    "build": "npm run remove_type_files && npm run remove_js_files && npm run build_esm",
+    "build_all": "npm run remove_type_files && npm run remove_js_files && npm run build_esm && npm run create_types",
+    "build_esm": "rollup ./src/index.js --file ./dist/dir_snapshot_tool.esm.js --format es",
+    "create_types": "npx -p typescript tsc --project my.tsconfig.types.json",
+    "remove_type_files": "del /q *.d.ts *.d.ts.map && cd dist && del /s /q *.d.ts *.d.ts.map && cd ../src && del /s /q *.d.ts *.d.ts.map && cd ..",
+    "remove_js_files": "cd dist && del /s /q *.js && cd .."
+  }
+}
