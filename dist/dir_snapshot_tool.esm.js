@@ -152,12 +152,18 @@ function shouldExclude(absolutePath, excludePaths) {
 // @ts-check
 
 /**
- * Generates a string representing the current time in the format
- * "YYYY-MM-DD-HH-MM-SS" to be used as a filename for a snapshot.
- *
+ * Generates a snapshot filename with a timestamp.
+ * The filename format is: `prefix.YYYY-MM-DD.HH-MM-SS.extension`
+ * 
  * @param {string} [prefix="snapshot"] - The prefix to be used in the filename
  * @param {string} [extension="ndjson"] - The file extension to be used
- * @returns {string}
+ * @returns {string} The generated filename with timestamp
+ * @example
+ * // returns "snapshot.2023-05-15.14-30-45.ndjson"
+ * generateSnapshotName();
+ * @example
+ * // returns "backup.2023-05-15.14-30-45.json"
+ * generateSnapshotName("backup", "json");
  */
 function generateSnapshotName(prefix = "snapshot", extension = "ndjson") {
   const date = new Date();
