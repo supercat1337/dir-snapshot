@@ -132,19 +132,3 @@ Snapshots are saved in NDJSON format with the following structure:
 ## License
 
 MIT
-
----
-
-This README includes:
-1. Clear description of the library's purpose
-2. Installation instructions
-3. Usage examples for all major features
-4. API reference based on your type definitions
-5. File format information
-6. License placeholder
-
-You may want to customize:
-- The installation command with your actual package name
-- Add a license file and update the license section
-- Add a "Contributing" section if it's an open-source project
-- Include any additional usage examples specific to your library
