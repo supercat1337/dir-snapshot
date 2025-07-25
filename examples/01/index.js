@@ -3,7 +3,7 @@
 import {
     generateSnapshotName,
     createSnapshot,
-} from "../../dist/dir_snapshot_tool.esm.js";
+} from "../../dist/dir_snapshot.esm.js";
 const __dirname = import.meta.dirname;
 
 const snapshotPath = __dirname + "/" + generateSnapshotName('project-snapshot');
