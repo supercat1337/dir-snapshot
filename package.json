@@ -1,5 +1,5 @@
 {
-  "name": "dir-snapshot-tool",
+  "name": "dir-snapshot",
   "version": "1.0.0",
   "description": "Creates a snapshot of a directory and its contents",
   "license": "ISC",

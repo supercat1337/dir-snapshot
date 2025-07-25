@@ -13,7 +13,7 @@ A JavaScript library for creating, comparing, and validating directory snapshots
 ## Installation
 
 ```bash
-npm install dir-snapshot-tool
+npm install dir-snapshot
 ```
 
 ## Usage
@@ -21,7 +21,7 @@ npm install dir-snapshot-tool
 ### Creating a Snapshot
 
 ```javascript
-import { createSnapshot, generateSnapshotName } from 'dir-snapshot-tool';
+import { createSnapshot, generateSnapshotName } from 'dir-snapshot';
 
 const snapshotPath = generateSnapshotName('project-snapshot');
 const options = {
@@ -43,7 +43,7 @@ createSnapshot(options).then(success => {
 ### Comparing Snapshots
 
 ```javascript
-import { compareSnapshots } from 'dir-snapshot-tool';
+import { compareSnapshots } from 'dir-snapshot';
 
 compareSnapshots('snapshot1.ndjson', 'snapshot2.ndjson').then(differences => {
     console.log('Changes detected:', differences);
@@ -60,7 +60,7 @@ compareSnapshots('snapshot1.ndjson', 'snapshot2.ndjson').then(differences => {
 ### Validating a Snapshot
 
 ```javascript
-import { validateSnapshot } from 'dir-snapshot-tool';
+import { validateSnapshot } from 'dir-snapshot';
 
 validateSnapshot('snapshot.ndjson').then(isValid => {
     console.log('Snapshot is valid:', isValid);
@@ -70,7 +70,7 @@ validateSnapshot('snapshot.ndjson').then(isValid => {
 ### Working with Snapshot Objects
 
 ```javascript
-import { Snapshot } from 'dir-snapshot-tool';
+import { Snapshot } from 'dir-snapshot';
 
 const snapshot = new Snapshot('existing-snapshot.ndjson');
 snapshot.open().then(opened => {
