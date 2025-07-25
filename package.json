@@ -7,7 +7,9 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "start": "node example/index.js",
+    "ex1": "node examples/01/index.js",
+    "ex2": "node examples/02/index.js",
+    "ex3": "node examples/03/index.js",
     "build": "npm run remove_type_files && npm run remove_js_files && npm run build_esm",
     "build_all": "npm run remove_type_files && npm run remove_js_files && npm run build_esm && npm run create_types",
     "build_esm": "rollup ./src/index.js --file ./dist/dir_snapshot_tool.esm.js --format es",

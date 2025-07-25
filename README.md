@@ -1,90 +1,150 @@
-# Directory Scanner & Snapshot Tool
+# Directory Snapshot Library
 
-A lightweight Node.js library for scanning directories and creating snapshot files with metadata including file hashes, perfect for integrity checking, backups, or change detection.
+A JavaScript library for creating, comparing, and validating directory snapshots. This tool helps track changes in directory structures over time by capturing file metadata and content hashes.
 
 ## Features
 
-- Recursively scan directories with configurable depth
-- Exclude specific paths or patterns
-- Generate SHA-256 hashes for file content verification
-- Capture file metadata (size, timestamps)
-- Create timestamped snapshot files
-- Machine-specific identification support
-- Output in newline-delimited JSON (NDJSON) format
+- Create snapshots of directory structures with metadata
+- Compare two snapshots to detect changes (added, removed, modified files)
+- Validate snapshot files for integrity
+- Customizable snapshot generation with exclusion patterns
+- File entry metadata including SHA-256 hashes for content verification
 
 ## Installation
 
 ```bash
-npm install https://github.com/supercat1337/dir-snapshot-tool
+npm install dir-snapshot-tool
 ```
 
 ## Usage
 
-### Basic Example
+### Creating a Snapshot
 
 ```javascript
-import { generateSnapshotName, scanToFile } from 'dir-snapshot-tool';
+import { createSnapshot, generateSnapshotName } from 'dir-snapshot-tool';
 
-const outputFile = './snapshots/' + generateSnapshotName();
+const snapshotPath = generateSnapshotName('project-snapshot');
+const options = {
+    outputFile: snapshotPath,
+    dirPath: './project-folder',
+    excludePaths: ['node_modules', /\.git/],
+    maxDepth: 10,
+    machineId: 'build-server-01',
+    metadata: { project: 'my-project', version: '1.0.0' }
+};
 
-scanToFile({
-  outputFile,
-  dirPath: './project-folder',
-  excludePaths: [
-    '/project-folder/node_modules',
-    '/project-folder/.git',
-    /\.tmp$/ // exclude all .tmp files using regex
-  ],
-  machineId: 'server-01'
-})
-.then(() => console.log('Snapshot created successfully'))
-.catch(console.error);
+createSnapshot(options).then(success => {
+    if (success) {
+        console.log(`Snapshot created: ${snapshotPath}`);
+    }
+});
+```
+
+### Comparing Snapshots
+
+```javascript
+import { compareSnapshots } from 'dir-snapshot-tool';
+
+compareSnapshots('snapshot1.ndjson', 'snapshot2.ndjson').then(differences => {
+    console.log('Changes detected:', differences);
+    // Output might include:
+    // {
+    //   added: [...],
+    //   deleted: [...],
+    //   modifiedDate: [...],
+    //   modifiedContent: [...],
+    // }
+});
+```
+
+### Validating a Snapshot
+
+```javascript
+import { validateSnapshot } from 'dir-snapshot-tool';
+
+validateSnapshot('snapshot.ndjson').then(isValid => {
+    console.log('Snapshot is valid:', isValid);
+});
+```
+
+### Working with Snapshot Objects
+
+```javascript
+import { Snapshot } from 'dir-snapshot-tool';
+
+const snapshot = new Snapshot('existing-snapshot.ndjson');
+snapshot.open().then(opened => {
+    if (opened) {
+        console.log('Root path:', snapshot.header.rootPath);
+        console.log('Created at:', snapshot.header.createdAt);
+        console.log('Total entries:', snapshot.entries.size);
+    }
+});
 ```
 
 ## API Reference
 
-### `generateSnapshotName(prefix = "snapshot", extension = "ndjson")`
+### Snapshot Class
 
-Generates a timestamped filename.
+Represents a directory snapshot with methods to inspect its contents.
 
-- **prefix**: String to prepend to the filename (default: "snapshot")
-- **extension**: File extension (default: "ndjson")
+**Properties:**
 
-**Returns**: `string` - Formatted filename (e.g., "snapshot.2023-11-15.14-30-45.ndjson")
+- `header`: Contains metadata about the snapshot (rootPath, createdAt, machineId, version, type)
+- `entries`: Map of file entries (key: path, value: FileEntry)
+- `footer`: Indicates if the snapshot was successfully created or contains errors
+- `path` (readonly): The source path of the snapshot file
 
-### `scanToFile(options)`
+**Methods:**
 
-Scans a directory and writes snapshot to file.
+- `isOpened()`: Check if the snapshot is loaded
+- `open()`: Load the snapshot data from file
 
-**Options object:**
+### FileEntry Class
 
-- **outputFile**: `string` (required) - Path to output file
-- **dirPath**: `string` (required) - Directory to scan
-- **excludePaths**: `Array<string|RegExp>` - Paths/patterns to exclude
-- **maxDepth**: `number` - Maximum recursion depth (default: Infinity)
-- **machineId**: `string` - Identifier for the scanning machine (default: "unknown")
-- **metadata**: `Object` - Additional metadata to include in snapshot header
+Represents a file or directory entry in the snapshot.
 
-**Returns**: `Promise<void>`
+**Properties:**
+
+- `path`: Relative path from snapshot root
+- `type`: "file" or "directory"
+- `size`: File size in bytes (files only)
+- `ctime`: Creation timestamp (ISO format)
+- `mtime`: Modification timestamp (ISO format)
+- `sha256`: SHA-256 hash of file content (files only)
+- `depth`: Directory depth from root
+
+### Functions
+
+- `createSnapshot(options)`: Creates a new snapshot file
+- `compareSnapshots(path1, path2)`: Compares two snapshots
+- `validateSnapshot(path)`: Validates a snapshot file
+- `generateSnapshotName(prefix, extension)`: Generates a timestamped filename
 
 ## Snapshot File Format
 
-The snapshot file uses NDJSON format with:
+Snapshots are saved in NDJSON format with the following structure:
 
-- A header line containing metadata
-- Subsequent lines for each file/directory entry
+- Header line (JSON object with metadata)
+- File entry lines (one per file/directory)
+- Footer line (status information)
 
-Example entry:
+## License
 
-```json
-{"path":"/absolute/path/to/file.txt","type":"file","size":1024,"ctime":"2023-11-15T14:30:45.000Z","mtime":"2023-11-15T14:30:45.000Z","sha256":"a1b2c3...","depth":2}
-```
+MIT
 
-## Use Cases
+---
 
-- Verify directory integrity between systems
-- Detect unauthorized file changes
-- Create lightweight backups
-- Monitor directory structure over time
-- Compare development environments
+This README includes:
+1. Clear description of the library's purpose
+2. Installation instructions
+3. Usage examples for all major features
+4. API reference based on your type definitions
+5. File format information
+6. License placeholder
 
+You may want to customize:
+- The installation command with your actual package name
+- Add a license file and update the license section
+- Add a "Contributing" section if it's an open-source project
+- Include any additional usage examples specific to your library

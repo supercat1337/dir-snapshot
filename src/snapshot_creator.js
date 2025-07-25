@@ -3,25 +3,15 @@
 import { createWriteStream } from "node:fs";
 import { readdir, lstat } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { calculateFileHash } from "./filehash.js";
-
-/**
- * File system entry metadata
- * @typedef {Object} FileEntry
- * @property {string} path
- * @property {'file'|'directory'} type
- * @property {number} [size]
- * @property {string} ctime
- * @property {string} mtime
- * @property {string} [sha256] - Only for files
- * @property {number} depth
- */
+import { calculateFileHash } from "./tools.js";
+import { FileEntry } from "./fileentry.js";
 
 /**
  * Scans a directory and writes data to a file, excluding specified paths
- * @param {{ outputFile: string, dirPath: string, excludePaths?: string[], maxDepth?: number, machineId?: string, metadata?: Object }} options
+ * @param {{ outputFile: string, dirPath: string, excludePaths?: Array<string|RegExp>, maxDepth?: number, machineId?: string, metadata?: Object }} options
+ * @returns {Promise<boolean>} A promise that resolves with true if the snapshot is valid and this object is populated, otherwise false
  */
-export async function scanToFile(options) {
+export async function createSnapshot(options) {
     const {
         outputFile,
         dirPath,
@@ -33,6 +23,7 @@ export async function scanToFile(options) {
 
     const writer = createWriteStream(outputFile, { flags: "w" });
     const rootPath = resolve(dirPath);
+    let result = true;
 
     const header = {
         version: "1.0",
@@ -47,14 +38,16 @@ export async function scanToFile(options) {
     try {
         await processDirectory(rootPath, writer, excludePaths, maxDepth);
         let footer = JSON.stringify({status: "success"});
-        writer.write(footer + "\n");
+        writer.write(footer);
     } catch (error) {
         console.error("Error processing directory:", error);
         let footer = JSON.stringify({status: "error", message: error.message});
-        writer.write(footer + "\n");
+        writer.write(footer);
+        result = false;
     }
 
     writer.end();
+    return result;
 }
 
 /**
@@ -84,13 +77,13 @@ async function processDirectory(
 
         const stats = await lstat(absolutePath);
         /** @type {FileEntry} */
-        let record = {
-            path: absolutePath, // Save the absolute path
-            type: stats.isDirectory() ? "directory" : "file",
-            ctime: stats.ctime.toISOString(),
-            mtime: stats.mtime.toISOString(),
-            depth: currentDepth,
-        };
+        let record = new FileEntry(
+            absolutePath,
+            stats.isDirectory() ? "directory" : "file",
+            stats.ctime.toISOString(),
+            stats.mtime.toISOString(),
+            currentDepth, 
+        );
 
         if (stats.isFile()) {
             record.sha256 = await calculateFileHash(absolutePath);

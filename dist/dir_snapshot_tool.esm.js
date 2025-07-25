@@ -1,7 +1,9 @@
-import { createReadStream, createWriteStream } from 'node:fs';
+import { createReadStream, createWriteStream, existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import 'readline';
+import { createInterface } from 'node:readline';
 import { readdir, lstat } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
-import { createHash } from 'node:crypto';
 
 // @ts-check
 
@@ -23,26 +25,207 @@ const calculateFileHash = async (filePath) => {
   });
 };
 
+
+/**
+ * Generates a snapshot filename with a timestamp.
+ * The filename format is: `prefix.YYYY-MM-DD.HH-MM-SS.extension`
+ * 
+ * @param {string} [prefix="snapshot"] - The prefix to be used in the filename
+ * @param {string} [extension="ndjson"] - The file extension to be used
+ * @returns {string} The generated filename with timestamp
+ * @example
+ * // returns "snapshot.2023-05-15.14-30-45.ndjson"
+ * generateSnapshotName();
+ * @example
+ * // returns "backup.2023-05-15.14-30-45.json"
+ * generateSnapshotName("backup", "json");
+ */
+function generateSnapshotName(prefix = "snapshot", extension = "ndjson") {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  return `${prefix}.${year}-${month}-${day}.${hours}-${minutes}-${seconds}.${extension}`
+}
+
+/**
+ * Checks if an object has all the specified properties
+ * @param {Object} obj - The object to be checked
+ * @param {Array<string>} properties - The properties to be checked for
+ * @returns {boolean} Whether the object has all the specified properties or not
+ */
+function hasProperties(obj, properties) {
+  return properties.every((property) => property in obj);
+}
+
+/**
+ * Checks if a given string matches the ISO 8601 date format.
+ *
+ * @param {string} dateString - The string to be validated against the ISO 8601 format.
+ * @returns {boolean} True if the string is in the ISO 8601 format, otherwise false.
+ */
+
+function isIsoDateString(dateString) {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(dateString);
+}
+
 // @ts-check
 
 
 /**
- * File system entry metadata
- * @typedef {Object} FileEntry
- * @property {string} path
- * @property {'file'|'directory'} type
- * @property {number} [size]
- * @property {string} ctime
- * @property {string} mtime
- * @property {string} [sha256] - Only for files
- * @property {number} depth
+ * Validates a directory snapshot file.
+ * @param {string} filePath - The path to the snapshot file to be validated.
+ * @returns {Promise<boolean>} A promise that resolves with true if the snapshot is valid, otherwise false.
  */
+async function validateSnapshot(filePath) {
+    const fileStream = createReadStream(filePath, { encoding: "utf-8" });
+    const rl = createInterface({
+        input: fileStream,
+        crlfDelay: Infinity,
+    });
+
+    let expectedHeader = true;
+    let expectedFooterOrEntry = false;
+    let expectedNoData = false;
+
+    let isValid = false;
+
+    try {
+        for await (const line of rl) {
+            if (expectedHeader) {
+                if (isHeader(line)) {
+                    expectedHeader = false;
+                    expectedFooterOrEntry = true;
+                } else {
+                    throw new Error(`Invalid header: ${line}`);
+                }
+            } else if (expectedFooterOrEntry) {
+                if (isFooter(line)) {
+                    expectedFooterOrEntry = false;
+                    expectedNoData = true;
+
+                    let footer = JSON.parse(line);
+                    if (footer.status !== "success") {
+                        console.warn(
+                            `Snapshot has status: ${footer.status}, but should be "success"`
+                        );
+                        if (footer.message) {
+                            console.warn(
+                                `Snapshot has message: ${footer.message}`
+                            );
+                        }
+                        throw new Error("Snapshot is invalid: " + line);
+                    }
+                } else if (isDirectoryEntry(line)) {
+                    // do nothing
+                } else {
+                    throw new Error(`Invalid footer or entry: ${line}`);
+                }
+            } else if (expectedNoData) {
+                if (line !== "") throw new Error(`Unexpected data: ${line}`);
+            }
+        }
+
+        isValid = true;
+    } catch (error) {
+        console.error(error.message);
+    }
+
+    rl.close();
+    return isValid;
+}
+
+/**
+ * Determines if a given line is a valid header for a directory snapshot.
+ * The header is considered valid if it is a JSON object with the correct type and contains
+ * all required properties: "version", "type", "createdAt", "machineId", and "rootPath".
+ *
+ * @param {string} line - The line to be checked, expected to be a JSON string.
+ * @returns {boolean} True if the line is a valid header, otherwise false.
+ */
+function isHeader(line) {
+    let header = JSON.parse(line);
+    return (
+        header.type === "dir-snapshot" &&
+        isIsoDateString(header.createdAt) &&
+        hasProperties(header, [
+            "version",
+            "type",
+            "createdAt",
+            "machineId",
+            "rootPath",
+        ])
+    );
+}
+
+/**
+ * Determines if a given line is a valid directory entry for a directory snapshot.
+ * The directory entry is considered valid if it is a JSON object with the correct type and contains
+ * all required properties: "path", "type", "size", "ctime", "mtime", and "depth".
+ *
+ * @param {string} line - The line to be checked, expected to be a JSON string.
+ * @returns {boolean} True if the line is a valid directory entry, otherwise false.
+ */
+function isDirectoryEntry(line) {
+    let entry = JSON.parse(line);
+    return hasProperties(entry, [
+        "path",
+        "type",
+        "ctime",
+        "mtime",
+        "depth",
+    ]);
+}
+
+/**
+ * Determines if a given line is a valid footer for a directory snapshot.
+ * The footer is considered valid if it is a JSON object with a "status" property.
+ *
+ * @param {string} line - The line to be checked, expected to be a JSON string.
+ * @returns {boolean} True if the line is a valid footer, otherwise false.
+ */
+function isFooter(line) {
+    let footer = JSON.parse(line);
+    return hasProperties(footer, ["status"]);
+}
+
+// @ts-check
+
+class FileEntry {
+    /**
+     * Constructor for FileEntry
+     *
+     * @param {string} path - the path to the file/directory
+     * @param {"file"|"directory"} type - the type of the entry
+     * @param {string} ctime - the creation time of the file in ISO format
+     * @param {string} mtime - the modification time of the file in ISO format
+     * @param {number} depth - the depth of the file/directory relative to the root directory
+     * @param {number} [size] - the size of the file in bytes
+     * @param {string} [sha256] - the SHA-256 hash of the file, only for files
+     */
+    constructor(path, type, ctime, mtime, depth, size, sha256) {
+        this.path = path;
+        this.type = type;
+        this.size = size;
+        this.ctime = ctime;
+        this.mtime = mtime;
+        this.sha256 = sha256;
+        this.depth = depth;
+    }
+}
+
+// @ts-check
+
 
 /**
  * Scans a directory and writes data to a file, excluding specified paths
- * @param {{ outputFile: string, dirPath: string, excludePaths?: string[], maxDepth?: number, machineId?: string, metadata?: Object }} options
+ * @param {{ outputFile: string, dirPath: string, excludePaths?: Array<string|RegExp>, maxDepth?: number, machineId?: string, metadata?: Object }} options
+ * @returns {Promise<boolean>} A promise that resolves with true if the snapshot is valid and this object is populated, otherwise false
  */
-async function scanToFile(options) {
+async function createSnapshot(options) {
     const {
         outputFile,
         dirPath,
@@ -54,6 +237,7 @@ async function scanToFile(options) {
 
     const writer = createWriteStream(outputFile, { flags: "w" });
     const rootPath = resolve(dirPath);
+    let result = true;
 
     const header = {
         version: "1.0",
@@ -68,14 +252,16 @@ async function scanToFile(options) {
     try {
         await processDirectory(rootPath, writer, excludePaths, maxDepth);
         let footer = JSON.stringify({status: "success"});
-        writer.write(footer + "\n");
+        writer.write(footer);
     } catch (error) {
         console.error("Error processing directory:", error);
         let footer = JSON.stringify({status: "error", message: error.message});
-        writer.write(footer + "\n");
+        writer.write(footer);
+        result = false;
     }
 
     writer.end();
+    return result;
 }
 
 /**
@@ -105,13 +291,13 @@ async function processDirectory(
 
         const stats = await lstat(absolutePath);
         /** @type {FileEntry} */
-        let record = {
-            path: absolutePath, // Save the absolute path
-            type: stats.isDirectory() ? "directory" : "file",
-            ctime: stats.ctime.toISOString(),
-            mtime: stats.mtime.toISOString(),
-            depth: currentDepth,
-        };
+        let record = new FileEntry(
+            absolutePath,
+            stats.isDirectory() ? "directory" : "file",
+            stats.ctime.toISOString(),
+            stats.mtime.toISOString(),
+            currentDepth, 
+        );
 
         if (stats.isFile()) {
             record.sha256 = await calculateFileHash(absolutePath);
@@ -151,29 +337,271 @@ function shouldExclude(absolutePath, excludePaths) {
 
 // @ts-check
 
+
 /**
- * Generates a snapshot filename with a timestamp.
- * The filename format is: `prefix.YYYY-MM-DD.HH-MM-SS.extension`
- * 
- * @param {string} [prefix="snapshot"] - The prefix to be used in the filename
- * @param {string} [extension="ndjson"] - The file extension to be used
- * @returns {string} The generated filename with timestamp
- * @example
- * // returns "snapshot.2023-05-15.14-30-45.ndjson"
- * generateSnapshotName();
- * @example
- * // returns "backup.2023-05-15.14-30-45.json"
- * generateSnapshotName("backup", "json");
+ * Reads a directory snapshot file and parses its contents into an object.
+ * @param {string} filePath - The path to the snapshot file to be read.
+ * @returns {Promise<{header: {rootPath: string, createdAt: string, machineId?: string, version?: string, type: "dir-snapshot"}, entries: Map<string, FileEntry>, footer: {status: "success"}|{status: "error", message: string}}>} A promise that resolves with an object
+ * containing the header, entries, and footer of the snapshot. The `entries` property is a Map where the keys are the paths
+ * of the entries and the values are the parsed JSON objects.
  */
-function generateSnapshotName(prefix = "snapshot", extension = "ndjson") {
-  const date = new Date();
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const seconds = String(date.getSeconds()).padStart(2, '0');
-  return `${prefix}.${year}-${month}-${day}.${hours}-${minutes}-${seconds}.${extension}`
+async function readSnapshot(filePath) {
+    const fileStream = createReadStream(filePath, { encoding: "utf-8" });
+    const rl = createInterface({
+        input: fileStream,
+        crlfDelay: Infinity,
+    });
+
+    /** @type {{rootPath: string, createdAt: string, machineId?: string, version?: string, type: "dir-snapshot"}|null} */
+    let header = null;
+    /** @type {Map<string, FileEntry>} */
+    let entries = new Map();
+    /** @type {{status: "success"}|{status: "error", message: string}|null} */
+    let footer = null;
+
+    for await (const line of rl) {
+        let data = JSON.parse(line);
+
+        if (data.rootPath) {
+            header = data;
+        } else if (data.status) {
+            footer = data;
+        } else if (data.path) {
+            entries.set(data.path, data);
+        }
+    }
+
+    if (!header || !footer) {
+        throw new Error("Invalid snapshot file format.");
+    }
+
+    return { header, entries, footer };
 }
 
-export { generateSnapshotName, scanToFile };
+// @ts-check
+
+
+class Snapshot {
+    /** @type {{rootPath: string, createdAt: string, machineId?: string, version?: string, type: "dir-snapshot"}} */
+    #header;
+    /** @type {Map<string, FileEntry>} */
+    #entries = new Map();
+    /** @type {{status: "success"}|{status: "error", message: string}} */
+    #footer;
+
+    #isOpened = false;
+    /** @type {string} */
+    #path;
+
+    /**
+     * Constructs a new Snapshot instance with the specified path.
+     * @param {string} path - The path to the snapshot file or null if created from scratch.
+     */
+    constructor(path) {
+        if (!existsSync(path)) {
+            throw new Error("Snapshot file does not exist.");
+        }
+
+        this.#path = path;
+    }
+
+    /**
+     * The path to the snapshot file from which this snapshot was created or null if this snapshot was created from scratch.
+     * @type {string|null}
+     * @readonly
+     */
+    get path() {
+        return this.#path;
+    }
+
+    /**
+     * Checks if the snapshot object is opened.
+     * @returns {boolean} True if the snapshot object is opened, otherwise false.
+     */
+    isOpened() {
+        return this.#isOpened;
+    }
+
+    /**
+     * The header of the snapshot. Contains metadata like rootPath, createdAt, machineId, version, and type.
+     * @type {{rootPath: string, createdAt: string, machineId?: string, version?: string, type: "dir-snapshot"}}
+     * @readonly
+     * @throws {Error} If the snapshot has not been opened.
+     */
+    get header() {
+        if (!this.#isOpened) {
+            throw new Error("Snapshot is not opened.");
+        }   
+        return this.#header;
+    }
+
+    /**
+     * The entries of the snapshot. A Map where the keys are the paths of the entries and the values are the parsed JSON objects.
+     * @type {Map<string, FileEntry>}
+     * @readonly
+     * @throws {Error} If the snapshot has not been opened.
+     */
+    get entries() {
+        if (!this.#isOpened) {
+            throw new Error("Snapshot is not opened.");
+        }   
+        return this.#entries;
+    }
+
+    /**
+     * The footer of the snapshot. Contains information about the success or failure of creating the snapshot.
+     * @type {{status: "success"}|{status: "error", message: string}}
+     * @readonly
+     * @throws {Error} If the snapshot has not been opened.
+     */
+    get footer() {
+        if (!this.#isOpened) {
+            throw new Error("Snapshot is not opened.");
+        }   
+        return this.#footer;
+    }
+
+    /**
+     * Reads a snapshot file and populates this object with the data.
+     * @returns {Promise<boolean>} A promise that resolves with true if the snapshot is valid and this object is populated, otherwise false.
+     */
+    async open() {
+        if (this.isOpened()) {
+            throw new Error("Cannot open snapshot again. Create a new instance of Snapshot instead.");
+        }
+
+        let snaphotPath = this.#path;
+
+        let isValid = await validateSnapshot(snaphotPath);
+
+        if (!isValid) {
+            throw new Error("Snapshot file is invalid.");
+        }
+
+        try {
+            let snapshot = await readSnapshot(snaphotPath);
+            this.#header = snapshot.header;
+            this.#entries = snapshot.entries;
+            this.#footer = snapshot.footer;
+            this.#isOpened = true;
+            return true;
+        } catch (error) {
+            this.#isOpened = false;
+            return false;
+        }
+    }
+}
+
+// @ts-check
+
+
+/**
+ * Compares two directory snapshot files and returns the differences.
+ *
+ * @param {string} snapshot_path_1 - The path to the first snapshot file to be compared.
+ * @param {string} snapshot_path_2 - The path to the second snapshot file to be compared.
+ * @returns {Promise<{added: FileEntry[], deleted: FileEntry[], modifiedDate: {oldValue: FileEntry, newValue: FileEntry}[], modifiedContent: {oldValue: FileEntry, newValue: FileEntry}[]}>} A promise that resolves with an object containing the differences
+ * between the two snapshots. The object may include added, removed, and modified entries.
+ */
+async function compareSnapshots(snapshot_path_1, snapshot_path_2) {
+    const snapshot_1 = new Snapshot(snapshot_path_1);
+    const snapshot_2 = new Snapshot(snapshot_path_2);
+
+    await Promise.all([snapshot_1.open(), snapshot_2.open()]);
+
+    if (snapshot_1.header.rootPath !== snapshot_2.header.rootPath) {
+        throw new Error(
+            "Snapshots are not for the same directory: " +
+                snapshot_1.header.rootPath +
+                " vs " +
+                snapshot_2.header.rootPath
+        );
+    }
+
+    if (snapshot_1.header.createdAt === snapshot_2.header.createdAt) {
+        throw new Error(
+            "Snapshots are the same: " + snapshot_1.header.createdAt
+        );
+    }
+
+    const summary = {
+        /** @type {FileEntry[]} */
+        added: [],
+        /** @type {FileEntry[]} */
+        deleted: [],
+        /** @type {{oldValue: FileEntry, newValue: FileEntry}[]} */
+        modifiedDate: [],
+        /** @type {{oldValue: FileEntry, newValue: FileEntry}[]} */
+        modifiedContent: [],
+    };
+
+    const snap_older =
+        snapshot_1.header.createdAt < snapshot_2.header.createdAt
+            ? snapshot_1
+            : snapshot_2;
+    const snap_newer =
+        snapshot_1.header.createdAt < snapshot_2.header.createdAt
+            ? snapshot_2
+            : snapshot_1;
+
+    for (const [path, entry] of snap_newer.entries) {
+        let old_entry = snap_older.entries.get(path);
+
+        if (!old_entry) {
+            summary.added.push(entry);
+            continue;
+        } else {
+            if (entry.type !== old_entry.type) {
+                summary.deleted.push(old_entry);
+                summary.added.push(entry);
+                continue;
+            }
+
+            if (entry.type === "file") {
+                if (entry.sha256 !== old_entry.sha256) {
+                    summary.modifiedContent.push({
+                        oldValue: old_entry,
+                        newValue: entry,
+                    });
+                    continue;
+                }
+
+                if (entry.size !== old_entry.size) {
+                    summary.modifiedContent.push({
+                        oldValue: old_entry,
+                        newValue: entry,
+                    });
+                    continue;
+                }
+            }
+
+            if (entry.ctime !== old_entry.ctime) {
+                summary.modifiedDate.push({
+                    oldValue: old_entry,
+                    newValue: entry,
+                });
+                continue;
+            }
+
+            if (entry.mtime !== old_entry.mtime) {
+                summary.modifiedDate.push({
+                    oldValue: old_entry,
+                    newValue: entry,
+                });
+                continue;
+            }
+        }
+    }
+
+    for (const [path, old_entry] of snap_older.entries) {
+        let entry = snap_newer.entries.get(path);
+
+        if (!entry) {
+            summary.deleted.push(old_entry);
+        }
+    }
+
+    return summary;
+}
+
+export { Snapshot, compareSnapshots, createSnapshot, generateSnapshotName, validateSnapshot };
