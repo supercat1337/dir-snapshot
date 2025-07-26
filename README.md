@@ -45,14 +45,16 @@ createSnapshot(options).then(success => {
 ```javascript
 import { compareSnapshots } from 'dir-snapshot';
 
-compareSnapshots('snapshot1.ndjson', 'snapshot2.ndjson').then(differences => {
-    console.log('Changes detected:', differences);
+compareSnapshots('snapshot1.ndjson', 'snapshot2.ndjson').then(report => {
+    console.log('Changes detected:', report);
     // Output might include:
     // {
+    //   createdAt: "...",
     //   added: [...],
+    //   metaDataChanged: [...],
+    //   contentChanged: [...],
+    //   moved: [...],
     //   deleted: [...],
-    //   modifiedDate: [...],
-    //   modifiedContent: [...],
     // }
 });
 ```

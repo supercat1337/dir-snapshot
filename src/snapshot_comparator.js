@@ -3,12 +3,45 @@
 import { FileEntry } from "./fileentry.js";
 import { Snapshot } from "./snapshot.js";
 
+
+class Report {
+    /** @type {FileEntry[]} */
+    added = [];
+    /** @type {FileEntry[]} */
+    deleted = [];
+    /** @type {{src: FileEntry, dst: FileEntry}[]} */
+    moved = [];
+    /** @type {{oldValue: FileEntry, newValue: FileEntry}[]} */
+    metaDataChanged = [];
+    /** @type {{oldValue: FileEntry, newValue: FileEntry}[]} */
+    contentChanged = [];
+    /** @type {string} */
+    createdAt = "";
+
+    /**
+     * Converts the report object into a JSON-serializable format.
+     * 
+     * @returns {{createdAt:string, added:FileEntry[], metaDataChanged:{oldValue:FileEntry, newValue:FileEntry}[], contentChanged:{oldValue:FileEntry, newValue:FileEntry}[], moved:{src:FileEntry, dst:FileEntry}[], deleted:FileEntry[]}} An object containing the report details, such as the creation date,
+     *                   lists of added, deleted, moved, metadata changed, and content changed entries.
+     */
+    toJSON() {
+        return {
+            createdAt: this.createdAt,
+            added: this.added,
+            metaDataChanged: this.metaDataChanged,
+            contentChanged: this.contentChanged,
+            moved: this.moved,
+            deleted: this.deleted,
+        };
+    }
+}
+
 /**
  * Compares two directory snapshot files and returns the differences.
  *
  * @param {string} snapshot_path_1 - The path to the first snapshot file to be compared.
  * @param {string} snapshot_path_2 - The path to the second snapshot file to be compared.
- * @returns {Promise<{added: FileEntry[], deleted: FileEntry[], modifiedDate: {oldValue: FileEntry, newValue: FileEntry}[], modifiedContent: {oldValue: FileEntry, newValue: FileEntry}[]}>} A promise that resolves with an object containing the differences
+ * @returns {Promise<Report>} A promise that resolves with an object containing the differences
  * between the two snapshots. The object may include added, removed, and modified entries.
  */
 export async function compareSnapshots(snapshot_path_1, snapshot_path_2) {
@@ -32,16 +65,8 @@ export async function compareSnapshots(snapshot_path_1, snapshot_path_2) {
         );
     }
 
-    const summary = {
-        /** @type {FileEntry[]} */
-        added: [],
-        /** @type {FileEntry[]} */
-        deleted: [],
-        /** @type {{oldValue: FileEntry, newValue: FileEntry}[]} */
-        modifiedDate: [],
-        /** @type {{oldValue: FileEntry, newValue: FileEntry}[]} */
-        modifiedContent: [],
-    };
+    const summary = new Report();
+    summary.createdAt = snapshot_2.header.createdAt;
 
     const snap_older =
         snapshot_1.header.createdAt < snapshot_2.header.createdAt
@@ -67,7 +92,7 @@ export async function compareSnapshots(snapshot_path_1, snapshot_path_2) {
 
             if (entry.type === "file") {
                 if (entry.sha256 !== old_entry.sha256) {
-                    summary.modifiedContent.push({
+                    summary.contentChanged.push({
                         oldValue: old_entry,
                         newValue: entry,
                     });
@@ -75,7 +100,7 @@ export async function compareSnapshots(snapshot_path_1, snapshot_path_2) {
                 }
 
                 if (entry.size !== old_entry.size) {
-                    summary.modifiedContent.push({
+                    summary.contentChanged.push({
                         oldValue: old_entry,
                         newValue: entry,
                     });
@@ -84,7 +109,7 @@ export async function compareSnapshots(snapshot_path_1, snapshot_path_2) {
             }
 
             if (entry.ctime !== old_entry.ctime) {
-                summary.modifiedDate.push({
+                summary.metaDataChanged.push({
                     oldValue: old_entry,
                     newValue: entry,
                 });
@@ -92,7 +117,7 @@ export async function compareSnapshots(snapshot_path_1, snapshot_path_2) {
             }
 
             if (entry.mtime !== old_entry.mtime) {
-                summary.modifiedDate.push({
+                summary.metaDataChanged.push({
                     oldValue: old_entry,
                     newValue: entry,
                 });
@@ -106,6 +131,29 @@ export async function compareSnapshots(snapshot_path_1, snapshot_path_2) {
 
         if (!entry) {
             summary.deleted.push(old_entry);
+        }
+    }
+
+    // detect moved files
+
+    for (let i = 0; i < summary.deleted.length; i++) {
+        for (let j = 0; j < summary.added.length; j++) {
+            if (
+                summary.deleted[i].type === "file" &&
+                summary.added[j].type === "file" &&
+                summary.deleted[i].size === summary.added[j].size &&
+                summary.deleted[i].sha256 === summary.added[j].sha256
+            ) {
+                summary.moved.push({
+                    src: summary.deleted[i],
+                    dst: summary.added[j],
+                });
+
+                summary.deleted.splice(i, 1);
+                summary.added.splice(j, 1);
+                i--;
+                j--;
+            }
         }
     }
 

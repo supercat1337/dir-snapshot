@@ -59,21 +59,10 @@ export class Snapshot {
  *
  * @param {string} snapshot_path_1 - The path to the first snapshot file to be compared.
  * @param {string} snapshot_path_2 - The path to the second snapshot file to be compared.
- * @returns {Promise<{added: FileEntry[], deleted: FileEntry[], modifiedDate: {oldValue: FileEntry, newValue: FileEntry}[], modifiedContent: {oldValue: FileEntry, newValue: FileEntry}[]}>} A promise that resolves with an object containing the differences
+ * @returns {Promise<Report>} A promise that resolves with an object containing the differences
  * between the two snapshots. The object may include added, removed, and modified entries.
  */
-export function compareSnapshots(snapshot_path_1: string, snapshot_path_2: string): Promise<{
-    added: FileEntry[];
-    deleted: FileEntry[];
-    modifiedDate: {
-        oldValue: FileEntry;
-        newValue: FileEntry;
-    }[];
-    modifiedContent: {
-        oldValue: FileEntry;
-        newValue: FileEntry;
-    }[];
-}>;
+export function compareSnapshots(snapshot_path_1: string, snapshot_path_2: string): Promise<Report>;
 /**
  * Scans a directory and writes data to a file, excluding specified paths
  * @param {{ outputFile: string, dirPath: string, excludePaths?: Array<string|RegExp>, maxDepth?: number, machineId?: string, metadata?: Object }} options
@@ -128,5 +117,51 @@ declare class FileEntry {
     mtime: string;
     sha256: string;
     depth: number;
+}
+declare class Report {
+    /** @type {FileEntry[]} */
+    added: FileEntry[];
+    /** @type {FileEntry[]} */
+    deleted: FileEntry[];
+    /** @type {{src: FileEntry, dst: FileEntry}[]} */
+    moved: {
+        src: FileEntry;
+        dst: FileEntry;
+    }[];
+    /** @type {{oldValue: FileEntry, newValue: FileEntry}[]} */
+    metaDataChanged: {
+        oldValue: FileEntry;
+        newValue: FileEntry;
+    }[];
+    /** @type {{oldValue: FileEntry, newValue: FileEntry}[]} */
+    contentChanged: {
+        oldValue: FileEntry;
+        newValue: FileEntry;
+    }[];
+    /** @type {string} */
+    createdAt: string;
+    /**
+     * Converts the report object into a JSON-serializable format.
+     *
+     * @returns {{createdAt:string, added:FileEntry[], metaDataChanged:{oldValue:FileEntry, newValue:FileEntry}[], contentChanged:{oldValue:FileEntry, newValue:FileEntry}[], moved:{src:FileEntry, dst:FileEntry}[], deleted:FileEntry[]}} An object containing the report details, such as the creation date,
+     *                   lists of added, deleted, moved, metadata changed, and content changed entries.
+     */
+    toJSON(): {
+        createdAt: string;
+        added: FileEntry[];
+        metaDataChanged: {
+            oldValue: FileEntry;
+            newValue: FileEntry;
+        }[];
+        contentChanged: {
+            oldValue: FileEntry;
+            newValue: FileEntry;
+        }[];
+        moved: {
+            src: FileEntry;
+            dst: FileEntry;
+        }[];
+        deleted: FileEntry[];
+    };
 }
 export {};

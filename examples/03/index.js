@@ -10,12 +10,12 @@ import {
 
 const __dirname = import.meta.dirname;
 
-// Утилита для создания директории с родительскими папками
+// Utility to create a directory with parent folders
 const mkdirSyncRecursive = (dirPath) => {
     fs.mkdirSync(dirPath, { recursive: true });
 };
 
-// Утилита для создания файла с содержимым
+// Utility to create a file with content
 const createFileWithContent = (filePath, content) => {
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
@@ -24,21 +24,21 @@ const createFileWithContent = (filePath, content) => {
     fs.writeFileSync(filePath, content);
 };
 
-// 1. Создаем тестовую структуру
+// 1. Create test structure
 const testDir = path.join(__dirname, "test-structure");
 if (fs.existsSync(testDir)) {
-    // Удаляем если уже существует
+    // Remove if already exists
     fs.rmSync(testDir, { recursive: true, force: true });
 }
 
-// Создаем структуру папок и файлов
+// Create folder and file structure
 mkdirSyncRecursive(testDir);
 
-// Файлы первого уровня
+// First-level files
 createFileWithContent(path.join(testDir, "file1.txt"), "Initial content 1");
 createFileWithContent(path.join(testDir, "file2.txt"), "Initial content 2");
 
-// Подпапка с файлами
+// Subfolder with files
 mkdirSyncRecursive(path.join(testDir, "subfolder"));
 
 createFileWithContent(
@@ -50,7 +50,7 @@ createFileWithContent(
     "Sub content 2"
 );
 
-// Вложенная подпапка
+// Nested subfolder
 mkdirSyncRecursive(path.join(testDir, "subfolder", "nested"));
 createFileWithContent(
     path.join(testDir, "subfolder", "nested", "deepfile.txt"),
@@ -61,8 +61,8 @@ mkdirSyncRecursive(path.join(testDir, "subfolder2"));
 
 console.log("Initial structure created");
 
-// 2. Делаем первый снапшот
-const snapshot1Path = __dirname + "/" + generateSnapshotName("snapshot1");
+// 2. Create the first snapshot
+const snapshot1Path = __dirname + "/snapshots/" + generateSnapshotName("snapshot1");
 console.log(`Creating first snapshot at: ${snapshot1Path}`);
 
 await createSnapshot({
@@ -73,27 +73,27 @@ await createSnapshot({
 
 console.log("First snapshot created");
 
-// 3. Вносим изменения в структуру
+// 3. Make changes to the structure
 console.log("Making changes to the structure...");
 
-// Изменяем содержимое файла
+// Change file content
 fs.writeFileSync(path.join(testDir, "file1.txt"), "Modified content 1");
 
-// Меняем дату модификации
+// Change modification date
 fs.utimesSync(path.join(testDir, "subfolder2"), new Date(Date.now() - 1000), new Date(Date.now()));
 
-// Удаляем файл
+// Remove file
 fs.unlinkSync(path.join(testDir, "file2.txt"));
 
 //*
-// Переименовываем подпапку
+// Rename subfolder
 fs.renameSync(
     path.join(testDir, "subfolder"),
     path.join(testDir, "renamed-folder")
 );
 //*/
 
-// Создаем новую подпапку
+// Create a new subfolder
 mkdirSyncRecursive(path.join(testDir, "new-folder"));
 createFileWithContent(
     path.join(testDir, "new-folder", "newfile.txt"),
@@ -102,8 +102,8 @@ createFileWithContent(
 
 console.log("Changes applied");
 
-// 4. Делаем второй снапшот
-const snapshot2Path = __dirname + "/" + generateSnapshotName("snapshot2");
+// 4. Create the second snapshot
+const snapshot2Path = __dirname + "/snapshots/" + generateSnapshotName("snapshot2");
 console.log(`Creating second snapshot at: ${snapshot2Path}`);
 
 await createSnapshot({
@@ -114,15 +114,17 @@ await createSnapshot({
 
 console.log("Second snapshot created");
 
-// 5. Сравниваем снапшоты
+// 5. Compare snapshots
 console.log("Comparing snapshots...");
 const differences = await compareSnapshots(snapshot1Path, snapshot2Path);
 
 console.log("\nComparison results:");
-console.log("Added files:", differences.added);
-console.log("Removed files:", differences.deleted);
-console.log("Modified files by date:", differences.modifiedDate);
-console.log("Modified files by content:", differences.modifiedContent);
+console.log("Added:", differences.added);
+console.log("Moved:", differences.moved);
+console.log("Modified files by content:", differences.contentChanged);
+console.log("Modified files by metadata:", differences.metaDataChanged);
+console.log("Deleted:", differences.deleted);
 
-// Удаляем тестовую структуру (опционально)
+// Optionally remove the test structure
 // fs.rmSync(testDir, { recursive: true, force: true });
+
