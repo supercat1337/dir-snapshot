@@ -138,16 +138,21 @@ declare class Report {
         oldValue: FileEntry;
         newValue: FileEntry;
     }[];
-    /** @type {string} */
-    createdAt: string;
+    period: {
+        start: string;
+        end: string;
+    };
     /**
      * Converts the report object into a JSON-serializable format.
      *
-     * @returns {{createdAt:string, added:FileEntry[], metaDataChanged:{oldValue:FileEntry, newValue:FileEntry}[], contentChanged:{oldValue:FileEntry, newValue:FileEntry}[], moved:{src:FileEntry, dst:FileEntry}[], deleted:FileEntry[]}} An object containing the report details, such as the creation date,
+     * @returns {{period:{start:string, end:string}, added:FileEntry[], metaDataChanged:{oldValue:FileEntry, newValue:FileEntry}[], contentChanged:{oldValue:FileEntry, newValue:FileEntry}[], moved:{src:FileEntry, dst:FileEntry}[], deleted:FileEntry[]}} An object containing the report details, such as the creation date,
      *                   lists of added, deleted, moved, metadata changed, and content changed entries.
      */
     toJSON(): {
-        createdAt: string;
+        period: {
+            start: string;
+            end: string;
+        };
         added: FileEntry[];
         metaDataChanged: {
             oldValue: FileEntry;

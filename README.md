@@ -49,7 +49,7 @@ compareSnapshots('snapshot1.ndjson', 'snapshot2.ndjson').then(report => {
     console.log('Changes detected:', report);
     // Output might include:
     // {
-    //   createdAt: "...",
+    //   period: {start: "...", end: "..."},
     //   added: [...],
     //   metaDataChanged: [...],
     //   contentChanged: [...],

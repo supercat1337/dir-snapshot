@@ -67,7 +67,6 @@ function hasProperties(obj, properties) {
  * @param {string} dateString - The string to be validated against the ISO 8601 format.
  * @returns {boolean} True if the string is in the ISO 8601 format, otherwise false.
  */
-
 function isIsoDateString(dateString) {
   return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(dateString);
 }
@@ -495,7 +494,6 @@ class Snapshot {
 // @ts-check
 
 
-
 class Report {
     /** @type {FileEntry[]} */
     added = [];
@@ -507,18 +505,20 @@ class Report {
     metaDataChanged = [];
     /** @type {{oldValue: FileEntry, newValue: FileEntry}[]} */
     contentChanged = [];
-    /** @type {string} */
-    createdAt = "";
+    period = {
+        start: "",
+        end: "",
+    };
 
     /**
      * Converts the report object into a JSON-serializable format.
-     * 
-     * @returns {{createdAt:string, added:FileEntry[], metaDataChanged:{oldValue:FileEntry, newValue:FileEntry}[], contentChanged:{oldValue:FileEntry, newValue:FileEntry}[], moved:{src:FileEntry, dst:FileEntry}[], deleted:FileEntry[]}} An object containing the report details, such as the creation date,
+     *
+     * @returns {{period:{start:string, end:string}, added:FileEntry[], metaDataChanged:{oldValue:FileEntry, newValue:FileEntry}[], contentChanged:{oldValue:FileEntry, newValue:FileEntry}[], moved:{src:FileEntry, dst:FileEntry}[], deleted:FileEntry[]}} An object containing the report details, such as the creation date,
      *                   lists of added, deleted, moved, metadata changed, and content changed entries.
      */
     toJSON() {
         return {
-            createdAt: this.createdAt,
+            period: this.period,
             added: this.added,
             metaDataChanged: this.metaDataChanged,
             contentChanged: this.contentChanged,
@@ -558,7 +558,6 @@ async function compareSnapshots(snapshot_path_1, snapshot_path_2) {
     }
 
     const summary = new Report();
-    summary.createdAt = snapshot_2.header.createdAt;
 
     const snap_older =
         snapshot_1.header.createdAt < snapshot_2.header.createdAt
@@ -568,6 +567,9 @@ async function compareSnapshots(snapshot_path_1, snapshot_path_2) {
         snapshot_1.header.createdAt < snapshot_2.header.createdAt
             ? snapshot_2
             : snapshot_1;
+
+    summary.period.start = snap_older.header.createdAt;
+    summary.period.end = snap_newer.header.createdAt;
 
     for (const [path, entry] of snap_newer.entries) {
         let old_entry = snap_older.entries.get(path);

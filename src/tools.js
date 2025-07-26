@@ -92,7 +92,6 @@ export function hasProperties(obj, properties) {
  * @param {string} dateString - The string to be validated against the ISO 8601 format.
  * @returns {boolean} True if the string is in the ISO 8601 format, otherwise false.
  */
-
 export function isIsoDateString(dateString) {
   return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(dateString);
 }
