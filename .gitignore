@@ -5,3 +5,4 @@ package-lock.json
 .vscode
 output
 examples/03/snapshots
+examples/03/test-structure
