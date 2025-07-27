@@ -7,7 +7,7 @@
     "ndjson"
   ],
   "description": "Creates a snapshot of a directory and its contents",
-  "license": "ISC",
+  "license": "MIT",
   "repository": "https://github.com/supercat1337/dir-snapshot",
   "homepage": "https://github.com/supercat1337/dir-snapshot",
   "author": "Supercat1337",
